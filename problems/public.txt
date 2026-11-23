@@ -1,0 +1,73 @@
+# Public problems: the six problems of hackathon.cpp in the problem file
+# format (see common/problem_io.h). Run them with: ./build/check
+#
+#   dma_factor <x>      (optional) DMA between cores costs x times more
+#   input  <op> <size> <core> <addr> <seed>
+#   matmul <op> <a> <b> <M> <K> <N>
+#   relu <op> <a> | add <op> <a> <b> | concat <op> <a> <b>
+#   output <op> <core> <addr>
+
+problem 0 0_single_matmul
+grid 2 2
+input  0 16 0 0 42           # A 4x4
+input  1 16 1 0 99           # B 4x4
+matmul 2 0 1 4 4 4
+output 2 0 0
+end
+
+problem 1 1_matmul_relu
+grid 2 2
+input  0 256 0 0 7           # A 16x16
+input  1 256 1 0 13          # B 16x16
+matmul 2 0 1 16 16 16
+relu   3 2
+output 3 0 0
+end
+
+problem 2 2_parallel_matmuls
+grid 2 2
+input  0 64 0 0 21           # X  8x8
+input  1 64 1 0 37           # W1 8x8
+input  2 64 3 0 53           # W2 8x8
+matmul 3 0 1 8 8 8
+matmul 4 0 2 8 8 8
+concat 5 3 4
+output 5 0 0
+end
+
+problem 3 3_large_matmul
+grid 2 2
+input  0 1024 0 0 100        # A 32x32
+input  1 1024 1 0 200        # B 32x32
+matmul 2 0 1 32 32 32
+output 2 0 0
+end
+
+problem 4 4_mini_network
+grid 3 3
+input  0 128 4 0 300         # X  8x16
+input  1 256 0 0 400         # W1 16x16
+input  2 128 1 0 500         # B1 8x16
+input  3 128 8 0 600         # W2 16x8
+matmul 4 0 1 8 16 16
+add    5 4 2
+relu   6 5
+matmul 7 6 3 8 16 8
+relu   8 7
+output 8 0 0
+end
+
+problem 5 5_expensive_moves
+grid 4 4
+dma_factor 3                 # moving data is 3x more expensive
+input  0 128 6 512 700       # X  8x16, not at address 0
+input  1 256 0 0 710         # W1 16x16
+input  2 128 3 2048 720      # B1 8x16
+input  3 256 15 0 730        # W2 16x16, opposite corner
+matmul 4 0 1 8 16 16
+add    5 4 2
+relu   6 5
+matmul 7 6 3 8 16 16
+add    8 7 0                 # add the input back: + X
+output 8 9 1024              # inner core
+end

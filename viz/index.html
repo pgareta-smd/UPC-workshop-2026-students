@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Timeline · Scheduler Hackathon</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  color-scheme: light dark;
+  --font-display: "Satoshi", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --brand: #0061ff; --brand-2: #2677ff; --brand-text: #0057e6; --rose: #bc596e;
+  --night: #0a0a0a;
+  --bg: #f3f4f6; --panel: #ffffff; --surface-2: #f7f8fa; --text: #0a0a0a;
+  --muted: #5b5e66; --border: #e1e1e1; --border-strong: #c9c9c8; --link: #d4d6db;
+  --grid-dot: rgba(10, 10, 10, .07);
+  --compute: #14894c; --dma: #0061ff; --wait: #d18a0b; --idle: #8b9099;
+  --done: #3a3d44; --out: #bc596e;
+  --good: #0f7a43; --bad: #c42b37;
+  --focus: 0 0 0 3px rgba(0, 97, 255, .35);
+  --shadow: 0 1px 2px rgba(10, 10, 10, .04), 0 8px 24px -12px rgba(10, 10, 10, .12);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-text: #5c9bff;
+    --bg: #0a0a0a; --panel: #141518; --surface-2: #1b1c20; --text: #f2f2f2;
+    --muted: #a7a8ab; --border: #26282d; --border-strong: #383a40; --link: #2c2f36;
+    --grid-dot: rgba(255, 255, 255, .06);
+    --compute: #1fa45c; --dma: #2677ff; --wait: #e09a1c; --idle: #686d77;
+    --done: #363940; --out: #d27a8d;
+    --good: #45d483; --bad: #ff7a83;
+    --focus: 0 0 0 3px rgba(92, 155, 255, .45);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 var(--font-body);
+}
+a { color: var(--brand-text); }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+img { display: block; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
+           clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- header ---------- */
+.site {
+  background: var(--night); color: #fff;
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+  border-bottom: 3px solid var(--brand);
+}
+.site-inner {
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap;
+}
+.brand img { height: 24px; width: auto; }
+.event {
+  display: flex; align-items: center; gap: 10px;
+  padding-left: 22px; border-left: 1px solid rgba(255, 255, 255, .2);
+}
+.event h1 { margin: 0; font: 700 17px/1.2 var(--font-display); letter-spacing: -.005em; }
+.event small { display: block; font: 500 11px/1.3 var(--font-body);
+               letter-spacing: .08em; text-transform: uppercase; color: #b9b9b8; }
+.mark { flex: none; }
+.site nav { display: flex; gap: 4px; margin-left: auto; }
+.site nav[hidden] { display: none; }
+.site nav a {
+  color: #e1e1e1; text-decoration: none; font-weight: 500; font-size: 14px;
+  padding: 6px 12px; border-radius: 6px;
+}
+.site nav a:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.partner { display: flex; align-items: center; gap: 10px; padding-left: 20px; margin-left: auto;
+           border-left: 1px solid rgba(255, 255, 255, .2); }
+.site nav:not([hidden]) + .partner { margin-left: 0; }
+.partner span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #b9b9b8; }
+.partner img { height: 30px; width: auto; }
+
+/* ---------- toolbar ---------- */
+.toolbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+  padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  box-shadow: 0 6px 16px -14px rgba(0, 0, 0, .5);
+}
+select, button, input[type=file] { font: inherit; color: inherit; }
+select, button {
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  border-radius: 8px; padding: 6px 10px; height: 34px;
+}
+select:hover, button:hover { border-color: var(--muted); }
+#problem { font-family: var(--font-mono); font-size: 13px; max-width: 100%; }
+button#play {
+  min-width: 96px; cursor: pointer; font-weight: 600;
+  background: var(--brand); border-color: var(--brand); color: #fff;
+}
+button#play:hover { background: var(--brand-2); border-color: var(--brand-2); }
+#time {
+  font: 600 13px var(--font-mono); font-variant-numeric: tabular-nums;
+  min-width: 170px; padding: 6px 10px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border); text-align: center;
+}
+#slider { flex: 1; min-width: 160px; accent-color: var(--brand); height: 34px; }
+label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+            color: var(--muted); cursor: pointer; white-space: nowrap; }
+label.chk input { accent-color: var(--brand); width: 16px; height: 16px; margin: 0; }
+.filebtn {
+  position: relative; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; padding: 6px 12px; height: 34px; border-radius: 8px;
+  border: 1px solid var(--border-strong); cursor: pointer; white-space: nowrap;
+}
+.filebtn[hidden] { display: none; }
+.filebtn:hover { border-color: var(--brand); color: var(--brand-text); }
+.filebtn:focus-within { box-shadow: var(--focus); }
+
+/* ---------- panels ---------- */
+main {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 16px; padding: 16px 20px 24px;
+}
+@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0;
+}
+.card h2 { display: flex; align-items: center; gap: 8px;
+           font: 700 12px var(--font-body); margin: 0 0 10px; color: var(--muted);
+           text-transform: uppercase; letter-spacing: .08em; }
+.card h2::before { content: ""; width: 6px; height: 6px; border-radius: 1px; background: var(--brand); }
+.mesh-wrap {
+  border-radius: 8px; padding: 8px;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+#mesh { width: 100%; height: auto; display: block; margin: 0 auto; font-family: var(--font-body); }
+#gantt-card { grid-column: 1 / -1; }
+#gantt { width: 100%; display: block; cursor: crosshair; font-family: var(--font-body); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px;
+          color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.legend span::before {
+  content: ""; display: inline-block; width: 12px; height: 12px;
+  border-radius: 3px; margin-right: 6px; vertical-align: -2px;
+  background: var(--c);
+}
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td, th { padding: 5px 8px; text-align: left;
+         border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+     letter-spacing: .06em; border-bottom-color: var(--border-strong); }
+td:first-child { font: 600 12.5px var(--font-mono); }
+tr.total td { font-weight: 700; border-top: 1px solid var(--border-strong); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; min-width: 64px; text-align: center; padding: 1px 8px;
+        border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; }
+.status { margin-top: 12px; padding: 10px 12px; font-size: 13px; border-radius: 8px;
+          background: var(--surface-2); border: 1px solid var(--border); }
+.bad { color: var(--bad); font-weight: 600; }
+.good { color: var(--good); font-weight: 700; letter-spacing: .04em; }
+@keyframes flow { to { stroke-dashoffset: -24; } }
+.flow { animation: flow .6s linear infinite; }
+#msg { margin: 40px auto; max-width: 560px; padding: 24px 28px; text-align: center;
+       background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+       box-shadow: var(--shadow); }
+code { font: 12.5px var(--font-mono); background: var(--surface-2); padding: 2px 6px;
+       border-radius: 5px; border: 1px solid var(--border); }
+
+@media (max-width: 720px) {
+  .site-inner { padding: 12px 16px; gap: 10px 12px; }
+  .brand img { height: 22px; }
+  .partner { margin-left: auto; padding-left: 0; border: 0; }
+  .site nav:not([hidden]) + .partner { margin-left: auto; }
+  .partner img { height: 22px; }
+  .partner span { display: none; }
+  .event { order: 3; flex-basis: 100%; padding: 10px 0 0; border-left: 0;
+           border-top: 1px solid rgba(255, 255, 255, .15); }
+  .site nav { order: 4; margin-left: 0; }
+  .toolbar { position: static; padding: 10px 16px; }
+  #problem { flex-basis: 100%; }
+  #time { min-width: 0; flex: 1; white-space: nowrap; }
+  #slider { order: 5; flex-basis: 100%; }
+  label.chk, .filebtn { order: 6; }
+  #gantt { min-width: 640px; }
+  main { padding: 12px 16px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow { animation: none; }
+}
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="site-inner">
+    <a class="brand" href="https://semidynamics.com" target="_blank" rel="noopener"><img src="brand/semidynamics-white.svg" alt="Semidynamics" width="114" height="24"></a>
+    <div class="event">
+      <svg class="mark" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+        <rect x="0" y="0" width="6" height="6" rx="1.5" fill="#22b866"/>
+        <rect x="8" y="0" width="6" height="6" rx="1.5" fill="#2677ff"/>
+        <rect x="16" y="0" width="6" height="6" rx="1.5" fill="#5a5f69"/>
+        <rect x="0" y="8" width="6" height="6" rx="1.5" fill="#5a5f69"/>
+        <rect x="8" y="8" width="6" height="6" rx="1.5" fill="#22b866"/>
+        <rect x="16" y="8" width="6" height="6" rx="1.5" fill="#e59a1a"/>
+        <rect x="0" y="16" width="6" height="6" rx="1.5" fill="#2677ff"/>
+        <rect x="8" y="16" width="6" height="6" rx="1.5" fill="#5a5f69"/>
+        <rect x="16" y="16" width="6" height="6" rx="1.5" fill="#bc596e"/>
+      </svg>
+      <div><small>Operator Graph Scheduler</small><h1>Core Timeline</h1></div>
+    </div>
+    <nav aria-label="Main" id="sitenav" hidden><a href="/">Submit</a><a href="/leaderboard">Leaderboard</a></nav>
+    <div class="partner"><span>with</span><img src="brand/upc-white.svg" alt="UPC · Universitat Politècnica de Catalunya" width="119" height="26"></div>
+  </div>
+</header>
+<div class="toolbar" role="toolbar" aria-label="Playback">
+  <label for="problem" class="sr-only">Problem</label>
+  <select id="problem"></select>
+  <button id="play">▶ Play</button>
+  <label for="speed" class="sr-only">Playback speed</label>
+  <select id="speed">
+    <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+    <option value="1" selected>1×</option><option value="2">2×</option>
+    <option value="4">4×</option>
+  </select>
+  <input id="slider" type="range" min="0" max="1000" value="0" aria-label="Time">
+  <span id="time" aria-live="off"></span>
+  <label class="chk"><input type="checkbox" id="allflows"> All DMAs</label>
+  <label class="filebtn" title="Load another trace">Load trace…
+    <input type="file" id="file" accept=".js,.json" class="sr-only"></label>
+</div>
+<script>
+/* on the server the trace comes from the submission; only local copies load files */
+if (location.protocol !== "file:") document.querySelector(".filebtn").hidden = true;
+</script>
+<div id="msg" hidden></div>
+<main id="app">
+  <div class="card">
+    <h2>Mesh</h2>
+    <div class="mesh-wrap"><svg id="mesh" role="img" aria-label="Core mesh"></svg></div>
+    <div class="legend">
+      <span style="--c:var(--compute)">Computing</span>
+      <span style="--c:var(--dma)">DMA (receiving)</span>
+      <span style="--c:var(--wait)">Waiting for signal</span>
+      <span style="--c:var(--idle)">Idle</span>
+      <span style="--c:var(--done)">Done</span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Status</h2>
+    <div class="table-wrap"><table id="cores"></table></div>
+    <div class="status" id="summary"></div>
+  </div>
+  <div class="card" id="gantt-card">
+    <h2>Per-core timeline · click to jump</h2>
+    <div class="table-wrap"><svg id="gantt" role="img" aria-label="Per-core Gantt timeline"></svg></div>
+  </div>
+</main>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+const COLOR = { compute: "var(--compute)", dma: "var(--dma)",
+                wait: "var(--wait)", idle: "var(--idle)", done: "var(--done)" };
+const LABEL = { compute: "compute", dma: "dma", wait: "wait",
+                idle: "idle", done: "done" };
+
+let P = null, cur = 0, playing = false, lastTs = 0;
+
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+/* ---------- loading ---------- */
+function start(trace) {
+  const sel = $("problem");
+  sel.innerHTML = "";
+  trace.problems.forEach((p, i) => sel.add(new Option(p.name, i)));
+  sel.onchange = () => pick(trace.problems[sel.value]);
+  $("msg").hidden = true; $("app").hidden = false;
+  pick(trace.problems[0]);
+}
+
+function pick(p) {
+  P = p;
+  P.ncores = p.rows * p.cols;
+  P.byCore = Array.from({ length: P.ncores }, () => []);
+  for (const e of p.events) if (e.kind !== "signal") P.byCore[e.core].push(e);
+  P.end = Array.from({ length: P.ncores },
+    (_, c) => P.byCore[c].reduce((m, e) => Math.max(m, e.end), 0));
+  cur = 0; playing = false; $("play").textContent = "▶ Play";
+  buildMesh(); buildGantt(); buildSummary(); render();
+}
+
+$("file").onchange = ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  f.text().then(t => {
+    t = t.replace(/^\s*window\.TRACE\s*=\s*/, "").replace(/;\s*$/, "");
+    start(JSON.parse(t));
+  }).catch(err => alert("Could not read the trace: " + err));
+};
+
+/* ---------- state at time t ---------- */
+function stateAt(c, t) {
+  if (t >= P.end[c] && P.end[c] > 0 && t > 0) return { kind: "done" };
+  if (P.end[c] === 0) return { kind: "idle" };
+  for (const e of P.byCore[c])
+    if (t >= e.start && t < e.end) return { kind: e.kind, ev: e };
+  return { kind: "idle" };
+}
+
+/* ---------- mesh ---------- */
+const CELL = 215, BOX = 120, PAD = 30;
+let meshCores = [], flowLayer, allLayer;
+
+function center(c) {
+  const r = Math.floor(c / P.cols), k = c % P.cols;
+  return [PAD + k * CELL + BOX / 2, PAD + r * CELL + BOX / 2];
+}
+
+/* XY route points (row first, then column) along the mesh links */
+function routePts(src, dst) {
+  const [x1, y1] = center(src), [x2, y2] = center(dst);
+  return [[x1, y1], [x2, y1], [x2, y2]]
+    .filter((p, i, a) => i === 0 || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]);
+}
+
+/* Path drawn under the boxes; only the end is trimmed so the arrow shows */
+function route(src, dst) {
+  const pts = routePts(src, dst), n = pts.length;
+  const a = pts[n - 2], b = pts[n - 1];
+  const d = BOX / 2 + 8;
+  pts[n - 1] = [b[0] - Math.sign(b[0] - a[0]) * d, b[1] - Math.sign(b[1] - a[1]) * d];
+  return "M" + pts.map(p => `${p[0]},${p[1]}`).join(" L");
+}
+
+function buildMesh() {
+  const svg = $("mesh");
+  svg.innerHTML = "";
+  const w = PAD * 2 + (P.cols - 1) * CELL + BOX;
+  const h = PAD * 2 + (P.rows - 1) * CELL + BOX;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.style.maxWidth = (w * 1.3) + "px";
+
+  const defs = el("defs", {}, svg);
+  const mk = el("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 8, refY: 5,
+    markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--dma)" }, mk);
+
+  for (let c = 0; c < P.ncores; c++) {
+    const [x, y] = center(c);
+    if (c % P.cols < P.cols - 1)
+      el("line", { x1: x, y1: y, x2: x + CELL, y2: y, stroke: "var(--link)",
+                   "stroke-width": 6 }, svg);
+    if (Math.floor(c / P.cols) < P.rows - 1)
+      el("line", { x1: x, y1: y, x2: x, y2: y + CELL, stroke: "var(--link)",
+                   "stroke-width": 6 }, svg);
+  }
+
+  allLayer = el("g", {}, svg);
+  for (const e of P.events) {
+    if (e.kind !== "dma" || e.src === e.core) continue;
+    el("path", { d: route(e.src, e.core), fill: "none", stroke: "var(--dma)",
+      "stroke-width": 3, opacity: .35, "marker-end": "url(#arrow)" }, allLayer);
+  }
+  flowLayer = el("g", {}, svg);
+
+  meshCores = [];
+  for (let c = 0; c < P.ncores; c++) {
+    const [cx, cy] = center(c);
+    const g = el("g", {}, svg);
+    const rect = el("rect", { x: cx - BOX / 2, y: cy - BOX / 2, width: BOX,
+      height: BOX, rx: 12, fill: "var(--idle)", stroke: "var(--border)",
+      "stroke-width": 2 }, g);
+    const ring = el("rect", { x: cx - BOX / 2 - 5, y: cy - BOX / 2 - 5,
+      width: BOX + 10, height: BOX + 10, rx: 15, fill: "none",
+      stroke: "var(--dma)", "stroke-width": 3, "stroke-dasharray": "6 4",
+      visibility: "hidden" }, g);
+    el("text", { x: cx - BOX / 2 + 10, y: cy - BOX / 2 + 22,
+      "font-weight": 700, "font-size": 18, fill: "#fff" }, g, "C" + c);
+    if (c === P.output.core)
+      el("text", { x: cx + BOX / 2 - 10, y: cy - BOX / 2 + 20,
+        "text-anchor": "end", "font-size": 12, "font-weight": 700,
+        fill: "#fff" }, g, "OUT");
+    const state = el("text", { x: cx, y: cy + 4, "text-anchor": "middle",
+      "font-size": 13, fill: "#fff", "font-weight": 600 }, g, "");
+    const detail = el("text", { x: cx, y: cy + 22, "text-anchor": "middle",
+      "font-size": 11, fill: "#fff" }, g, "");
+    const held = P.tensors.filter(t => t.core === c)
+      .map(t => `Op${t.op}(${t.n})`).join(" ");
+    el("text", { x: cx, y: cy + BOX / 2 - 10, "text-anchor": "middle",
+      "font-size": 10, fill: "#fff", opacity: .85 }, g, held);
+    const barBg = el("rect", { x: cx - BOX / 2 + 10, y: cy + 30, width: BOX - 20,
+      height: 5, rx: 2, fill: "#fff", opacity: .25 }, g);
+    const bar = el("rect", { x: cx - BOX / 2 + 10, y: cy + 30, width: 0,
+      height: 5, rx: 2, fill: "#fff" }, g);
+    meshCores.push({ rect, ring, state, detail, bar, barBg });
+  }
+
+}
+
+function renderMesh() {
+  allLayer.style.display = $("allflows").checked ? "" : "none";
+  flowLayer.innerHTML = "";
+  const sending = new Set();
+  for (let c = 0; c < P.ncores; c++) {
+    const s = stateAt(c, cur), m = meshCores[c];
+    m.rect.setAttribute("fill", COLOR[s.kind]);
+    m.state.textContent = LABEL[s.kind];
+    m.detail.textContent = !s.ev ? "" : s.kind === "dma"
+      ? `← C${s.ev.src}  ${s.ev.n} floats` : s.ev.label;
+    const frac = s.ev ? (cur - s.ev.start) / (s.ev.end - s.ev.start) : 0;
+    m.bar.setAttribute("width", (BOX - 20) * Math.min(1, frac));
+    m.barBg.style.display = m.bar.style.display = s.ev ? "" : "none";
+    if (s.kind === "dma") {
+      const e = s.ev;
+      if (e.src !== c) {
+        sending.add(e.src);
+        const path = el("path", { d: route(e.src, c), fill: "none",
+          stroke: "var(--dma)", "stroke-width": 4, "stroke-dasharray": "8 4",
+          "marker-end": "url(#arrow)", class: "flow" }, flowLayer);
+        el("title", {}, path, e.label);
+        const [[x1, y1], [x2, y2]] = routePts(e.src, c);
+        const vert = x1 === x2;
+        const lx = vert ? x1 + 10 : (x1 + x2) / 2;
+        const ly = vert ? (y1 + y2) / 2 + 4 : y1 - 12;
+        el("text", { x: lx, y: ly, "text-anchor": vert ? "start" : "middle",
+          "font-size": 12, "font-weight": 700, fill: "var(--dma)" },
+          flowLayer, e.n + " floats");
+      }
+    }
+  }
+  for (let c = 0; c < P.ncores; c++)
+    meshCores[c].ring.setAttribute("visibility", sending.has(c) ? "visible" : "hidden");
+}
+
+/* ---------- gantt ---------- */
+const ROW = 26, LEFT = 46, GW = 1000;
+let cursor;
+
+function x(t) { return LEFT + (GW - LEFT - 10) * t / Math.max(1, P.makespan); }
+
+function buildGantt() {
+  const svg = $("gantt");
+  svg.innerHTML = "";
+  const h = P.ncores * ROW + 26;
+  svg.setAttribute("viewBox", `0 0 ${GW} ${h}`);
+  for (let c = 0; c < P.ncores; c++) {
+    const y = c * ROW + 4;
+    el("text", { x: 6, y: y + 16, "font-size": 12, fill: "var(--muted)" },
+       svg, "C" + c);
+    el("rect", { x: x(0), y, width: x(P.makespan) - x(0), height: ROW - 6,
+                 fill: "var(--idle)", rx: 3 }, svg);
+    if (P.end[c] > 0 && P.end[c] < P.makespan)
+      el("rect", { x: x(P.end[c]), y, width: x(P.makespan) - x(P.end[c]),
+                   height: ROW - 6, fill: "var(--done)", rx: 3 }, svg);
+    for (const e of P.byCore[c]) {
+      const r = el("rect", { x: x(e.start), y, height: ROW - 6, rx: 2,
+        width: Math.max(1, x(e.end) - x(e.start)), fill: COLOR[e.kind] }, svg);
+      el("title", {}, r, `C${c}: ${e.label}  [${e.start} → ${e.end})  ${e.end - e.start} cyc`);
+    }
+    for (const e of P.events.filter(e => e.kind === "signal" && e.core === c)) {
+      const t = el("path", { d: `M${x(e.start)},${y - 2} l4,-4 l-8,0 z`,
+                             fill: "var(--text)" }, svg);
+      el("title", {}, t, `C${c}: ${e.label} @ ${e.start}`);
+    }
+  }
+  const ay = P.ncores * ROW + 18;
+  for (let i = 0; i <= 5; i++) {
+    const t = Math.round(P.makespan * i / 5);
+    el("text", { x: x(t), y: ay, "font-size": 11, fill: "var(--muted)",
+      "text-anchor": i === 0 ? "start" : i === 5 ? "end" : "middle" }, svg, t);
+  }
+  cursor = el("line", { y1: 0, y2: P.ncores * ROW, stroke: "var(--rose)",
+                        "stroke-width": 2.5 }, svg);
+  svg.onclick = ev => {
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    cur = Math.max(0, Math.min(P.makespan,
+      (p.x - LEFT) / (GW - LEFT - 10) * P.makespan));
+    render();
+  };
+}
+
+/* ---------- side panel ---------- */
+function buildSummary() {
+  const ok = P.valid && P.correct;
+  const match = !P.valid || P.makespan === P.sim_makespan;
+  let s = `Makespan: <b>${P.makespan}</b> cycles · `;
+  if (P.dma_factor && P.dma_factor !== 1) s += `DMA cost <b>×${P.dma_factor}</b> · `;
+  s += ok ? `<span class="good">CORRECT</span>`
+          : `<span class="bad">${P.valid ? "INCORRECT" : "INVALID: " + P.error}</span>`;
+  if (ok && P.makespan) {
+    let comp = 0;
+    for (let c = 0; c < P.ncores; c++)
+      for (const e of P.byCore[c]) if (e.kind === "compute") comp += e.end - e.start;
+    s += ` · Compute utilization: <b>${(100 * comp / (P.ncores * P.makespan)).toFixed(1)}%</b>`;
+  }
+  if (!match) s += `<br><span class="bad">Replay ${P.makespan} ≠ simulate ${P.sim_makespan}</span>`;
+  if (P.deadlock) s += `<br><span class="bad">Deadlock in replay</span>`;
+  $("summary").innerHTML = s;
+}
+
+function renderTable() {
+  const pct = (v, cap) => (cap ? Math.round(100 * v / cap) : 0) + "%";
+  let h = `<tr><th>Core</th><th>Status</th><th class="num">compute</th>
+           <th class="num">dma</th><th class="num">util</th></tr>`;
+  let tComp = 0, tDma = 0;
+  for (let c = 0; c < P.ncores; c++) {
+    const s = stateAt(c, cur);
+    let comp = 0, dma = 0;
+    for (const e of P.byCore[c]) {
+      if (e.kind === "compute") comp += e.end - e.start;
+      if (e.kind === "dma") dma += e.end - e.start;
+    }
+    h += `<tr><td>C${c}</td><td><span class="pill" style="background:${COLOR[s.kind]}">
+          ${LABEL[s.kind]}</span></td><td class="num">${comp}</td>
+          <td class="num">${dma}</td><td class="num">${pct(comp, P.makespan)}</td></tr>`;
+    tComp += comp; tDma += dma;
+  }
+  const cap = P.ncores * P.makespan;
+  h += `<tr class="total"><td>Total</td><td></td><td class="num">${tComp}</td>
+        <td class="num">${tDma}</td><td class="num">${pct(tComp, cap)}</td></tr>`;
+  $("cores").innerHTML = h;
+}
+
+/* ---------- playback ---------- */
+function render() {
+  $("time").textContent = `cycle ${Math.floor(cur)} / ${P.makespan}`;
+  $("slider").value = P.makespan ? Math.round(1000 * cur / P.makespan) : 0;
+  cursor.setAttribute("x1", x(cur)); cursor.setAttribute("x2", x(cur));
+  renderMesh(); renderTable();
+}
+
+function tick(ts) {
+  if (!playing) return;
+  const dt = lastTs ? (ts - lastTs) / 1000 : 0;
+  lastTs = ts;
+  cur += dt * P.makespan / 8 * parseFloat($("speed").value);
+  if (cur >= P.makespan) { cur = P.makespan; playing = false;
+                           $("play").textContent = "▶ Play"; }
+  render();
+  if (playing) requestAnimationFrame(tick);
+}
+
+$("play").onclick = () => {
+  if (!P) return;
+  playing = !playing;
+  $("play").textContent = playing ? "❚❚ Pause" : "▶ Play";
+  if (playing) {
+    if (cur >= P.makespan) cur = 0;
+    lastTs = 0; requestAnimationFrame(tick);
+  }
+};
+$("slider").oninput = ev => { cur = P.makespan * ev.target.value / 1000; render(); };
+$("allflows").onchange = () => render();
+</script>
+<script src="trace.js"></script>
+<script>
+function showMsg(html) {
+  $("app").hidden = true;
+  $("msg").hidden = false;
+  $("msg").innerHTML = html;
+}
+
+function applyHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.has("p")) { $("problem").value = h.get("p"); $("problem").onchange(); }
+  if (h.has("t")) { cur = Math.min(P.makespan, +h.get("t")); render(); }
+}
+
+/* site links only make sense when served by the judge server */
+$("sitenav").hidden = !location.protocol.startsWith("http");
+
+/* ?sub=<id> loads a submission from the judge server, ?final=<id> a
+   final-round result */
+const params = new URLSearchParams(location.search);
+const sub = params.get("sub"), fin = params.get("final");
+if (sub || fin) {
+  let admin = "";   /* lets the organisers see unpublished final results */
+  try { admin = localStorage.getItem("admin-token") || ""; } catch (e) {}
+  fetch(sub ? "/api/submissions/" + encodeURIComponent(sub)
+            : "/api/final/" + encodeURIComponent(fin),
+        { headers: !sub && admin ? { "X-Admin-Token": admin } : {} })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => {
+      if (!d.trace.problems.length)
+        return showMsg("None of the problems in this submission could be simulated.");
+      start(d.trace);
+      applyHash();
+    })
+    .catch(() => showMsg(sub ? "Submission not found." : "Result not found or not published yet."));
+} else if (window.TRACE) {
+  start(window.TRACE);
+  applyHash();
+} else {
+  showMsg("<code>trace.js</code> not found. Generate it with " +
+          "<code>build/trace</code> or load it with the file picker.");
+}
+</script>
+</body>
+</html>
